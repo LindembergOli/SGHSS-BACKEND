@@ -272,7 +272,6 @@ sghss-backend/
 │   │   └── suprimentos/
 │   ├── shared/               # Utilitários compartilhados
 │   └── app.js
-├── tests/                    # Testes automatizados
 ├── server.js                 # Entry point
 └── package.json
 ```
