@@ -1,0 +1,336 @@
+// ===================================
+// SGHSS - Schema do Banco de Dados
+// Sistema de Gestão Hospitalar e de
+// Serviços de Saúde - VidaPlus
+// ===================================
+
+// Define o cliente a ser gerado para interagir com o banco de dados via Node.js
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Configuração da conexão com o banco de dados (Prisma v7 agora exige configuração da URL no runtime com a variável de ambiente DATABASE_URL)
+datasource db {
+  provider = "postgresql"
+}
+
+// ===================================
+// ENUMS
+// ===================================
+
+enum Perfil {
+  PACIENTE
+  PROFISSIONAL
+  ADMIN
+}
+
+enum TipoProfissional {
+  MEDICO
+  ENFERMEIRO
+  TECNICO
+}
+
+enum StatusConsulta {
+  AGENDADA
+  REALIZADA
+  CANCELADA
+}
+
+enum TipoConsulta {
+  PRESENCIAL
+  ONLINE
+}
+
+enum StatusExame {
+  SOLICITADO
+  EM_ANALISE
+  RESULTADO_DISPONIVEL
+}
+
+enum TipoUnidade {
+  HOSPITAL
+  CLINICA
+  LABORATORIO
+  HOME_CARE
+}
+
+enum StatusLeito {
+  LIVRE
+  OCUPADO
+  MANUTENCAO
+}
+
+enum StatusInternacao {
+  ATIVA
+  ALTA_MEDICA
+  TRANSFERIDA
+  OBITO
+}
+
+enum DiaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+  DOMINGO
+}
+
+// ===================================
+// ENTIDADES CORE
+// ===================================
+
+model Usuario {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  senhaHash String   @map("senha_hash")
+  perfil    Perfil
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  paciente     Paciente?
+  profissional Profissional?
+  auditLogs    AuditLog[]
+
+  @@map("usuarios")
+}
+
+model Paciente {
+  id        String   @id @default(uuid())
+  usuarioId String   @unique @map("usuario_id")
+  nome      String
+  cpf       String   @unique
+  dataNasc  DateTime @map("data_nasc")
+  telefone  String
+  endereco  String
+  sexo      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usuario      Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  consultas    Consulta[]
+  prontuarios  Prontuario[]
+  notificacoes Notificacao[]
+  internacoes  Internacao[]
+
+  @@map("pacientes")
+}
+
+model Profissional {
+  id               String            @id @default(uuid())
+  usuarioId        String            @unique @map("usuario_id")
+  nome             String
+  registroConselho String            @map("registro_conselho")
+  especialidade    String
+  tipo             TipoProfissional
+  unidadeId        String?           @map("unidade_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  usuario      Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  unidade      UnidadeHospitalar? @relation(fields: [unidadeId], references: [id])
+  consultas    Consulta[]
+  prescricoes  Prescricao[]
+  agendas      Agenda[]
+  internacoes  Internacao[]
+
+  @@map("profissionais")
+}
+
+model Agenda {
+  id             String    @id @default(uuid())
+  profissionalId String    @map("profissional_id")
+  diaSemana      DiaSemana @map("dia_semana")
+  horaInicio     String    @map("hora_inicio") // "08:00"
+  horaFim        String    @map("hora_fim")     // "12:00"
+  ativo          Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  profissional Profissional @relation(fields: [profissionalId], references: [id], onDelete: Cascade)
+
+  @@map("agendas")
+}
+
+// ===================================
+// ENTIDADES DE ATENDIMENTO
+// ===================================
+
+model Consulta {
+  id             String         @id @default(uuid())
+  pacienteId     String         @map("paciente_id")
+  profissionalId String         @map("profissional_id")
+  dataHora       DateTime       @map("data_hora")
+  status         StatusConsulta @default(AGENDADA)
+  tipo           TipoConsulta   @default(PRESENCIAL)
+  observacoes    String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  paciente     Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  profissional Profissional @relation(fields: [profissionalId], references: [id], onDelete: Cascade)
+  prontuario   Prontuario?
+  exames       Exame[]
+  prescricoes  Prescricao[]
+
+  @@map("consultas")
+}
+
+model Prontuario {
+  id          String   @id @default(uuid())
+  pacienteId  String   @map("paciente_id")
+  consultaId  String   @unique @map("consulta_id")
+  descricao   String
+  diagnostico String?
+  data        DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  paciente Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  consulta Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+
+  @@map("prontuarios")
+}
+
+model Exame {
+  id              String      @id @default(uuid())
+  consultaId      String      @map("consulta_id")
+  tipo            String
+  resultado       String?
+  status          StatusExame @default(SOLICITADO)
+  dataSolicitacao DateTime    @default(now()) @map("data_solicitacao")
+  dataResultado   DateTime?   @map("data_resultado")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  consulta Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+
+  @@map("exames")
+}
+
+model Prescricao {
+  id             String   @id @default(uuid())
+  consultaId     String   @map("consulta_id")
+  profissionalId String   @map("profissional_id")
+  medicamento    String
+  dosagem        String
+  instrucoes     String?
+  dataEmissao    DateTime @default(now()) @map("data_emissao")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  consulta     Consulta     @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  profissional Profissional @relation(fields: [profissionalId], references: [id], onDelete: Cascade)
+
+  @@map("prescricoes")
+}
+
+// ===================================
+// ENTIDADES DE SUPORTE
+// ===================================
+
+model Notificacao {
+  id         String   @id @default(uuid())
+  pacienteId String   @map("paciente_id")
+  titulo     String
+  mensagem   String
+  lida       Boolean  @default(false)
+  tipo       String   // CONSULTA_AGENDADA, CONSULTA_CANCELADA, EXAME_RESULTADO, etc.
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  paciente Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  @@map("notificacoes")
+}
+
+model UnidadeHospitalar {
+  id        String     @id @default(uuid())
+  nome      String
+  tipo      TipoUnidade
+  endereco  String
+  telefone  String
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  leitos        Leito[]
+  profissionais Profissional[]
+  suprimentos   Suprimento[]
+
+  @@map("unidades_hospitalares")
+}
+
+model Leito {
+  id        String      @id @default(uuid())
+  unidadeId String      @map("unidade_id")
+  numero    String
+  tipo      String      // UTI, ENFERMARIA, ISOLAMENTO
+  status    StatusLeito @default(LIVRE)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  unidade     UnidadeHospitalar @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
+  internacoes Internacao[]
+
+  @@map("leitos")
+}
+
+// ===================================
+// ENTIDADES DE ADMINISTRAÇÃO HOSPITALAR
+// ===================================
+
+model Internacao {
+  id               String           @id @default(uuid())
+  pacienteId       String           @map("paciente_id")
+  leitoId          String           @map("leito_id")
+  profissionalId   String           @map("profissional_id")
+  dataEntrada      DateTime         @default(now()) @map("data_entrada")
+  dataSaida        DateTime?        @map("data_saida")
+  motivo           String
+  diagnostico      String?
+  observacoes      String?
+  status           StatusInternacao @default(ATIVA)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  paciente     Paciente     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  leito        Leito        @relation(fields: [leitoId], references: [id])
+  profissional Profissional @relation(fields: [profissionalId], references: [id])
+
+  @@map("internacoes")
+}
+
+model Suprimento {
+  id          String   @id @default(uuid())
+  unidadeId   String   @map("unidade_id")
+  nome        String
+  categoria   String   // MEDICAMENTO, MATERIAL_CIRURGICO, EPI, LIMPEZA, EQUIPAMENTO
+  quantidade  Int      @default(0)
+  unidadeMedida String @map("unidade_medida") // UN, CX, PCT, L, KG
+  estoqueMinimo Int    @default(10) @map("estoque_minimo")
+  lote        String?
+  validade    DateTime?
+  fornecedor  String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  unidade UnidadeHospitalar @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
+
+  @@map("suprimentos")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  usuarioId  String?  @map("usuario_id")
+  acao       String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  entidade   String   // Nome da entidade afetada
+  entidadeId String?  @map("entidade_id")
+  detalhes   Json?    // Dados adicionais em JSON
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}

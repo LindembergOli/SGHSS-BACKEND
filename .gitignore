@@ -1,0 +1,22 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente
+.env
+
+# Logs
+logs/
+
+# Prisma
+generated/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testes
+coverage/
