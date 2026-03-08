@@ -29,6 +29,8 @@ async function main() {
     // Limpa todos os dados existentes (ordem importa por causa das chaves estrangeiras)
     await prisma.auditLog.deleteMany();
     await prisma.notificacao.deleteMany();
+    await prisma.suprimento.deleteMany();
+    await prisma.internacao.deleteMany();
     await prisma.prescricao.deleteMany();
     await prisma.exame.deleteMany();
     await prisma.prontuario.deleteMany();
@@ -154,6 +156,100 @@ async function main() {
         });
     }
     console.log('5 leitos criados');
+
+    // =============================================
+    // Cria suprimentos
+    // =============================================
+    await prisma.suprimento.create({
+        data: {
+            unidadeId: unidade.id,
+            nome: 'Dipirona Sodica 500mg',
+            categoria: 'MEDICAMENTO',
+            quantidade: 200,
+            unidadeMedida: 'CX',
+            estoqueMinimo: 50,
+            lote: 'L-2026-A1',
+            validade: new Date('2028-12-31'),
+            fornecedor: 'FarmaDistribuidora'
+        }
+    });
+
+    await prisma.suprimento.create({
+        data: {
+            unidadeId: unidade.id,
+            nome: 'Luva de Procedimento M',
+            categoria: 'EPI',
+            quantidade: 20, // Estoque baixo para testar os alertas
+            unidadeMedida: 'CX',
+            estoqueMinimo: 50,
+            lote: 'L-2025-X2',
+            validade: new Date('2027-01-01'),
+            fornecedor: 'AlphaMed'
+        }
+    });
+    console.log('Suprimentos criados (Estoque)');
+
+    // =============================================
+    // Cria uma consulta, prontuario, exames e prescricoes
+    // =============================================
+    const consulta = await prisma.consulta.create({
+        data: {
+            pacienteId: paciente.id,
+            profissionalId: medico.id,
+            dataHora: new Date(new Date().getTime() - 24 * 60 * 60 * 1000), // Há 1 dia atrás
+            status: 'REALIZADA',
+            tipo: 'PRESENCIAL',
+            observacoes: 'Paciente relata dores no peito.'
+        }
+    });
+
+    await prisma.prontuario.create({
+        data: {
+            consultaId: consulta.id,
+            pacienteId: paciente.id,
+            descricao: 'Pressao arterial elevada (14/9). Coracao acelerado.',
+            diagnostico: 'Taquicardia leve',
+            data: new Date()
+        }
+    });
+
+    await prisma.exame.create({
+        data: {
+            consultaId: consulta.id,
+            tipo: 'Eletrocardiograma',
+            status: 'RESULTADO_DISPONIVEL',
+            resultado: 'Ritmo sinusal com leve taquicardia. Sem isquemias.'
+        }
+    });
+
+    await prisma.prescricao.create({
+        data: {
+            consultaId: consulta.id,
+            profissionalId: medico.id,
+            medicamento: 'Atenolol 25mg',
+            dosagem: '1 comprimido pela manha',
+            instrucoes: 'Tomar em jejum com bastante agua.'
+        }
+    });
+    console.log('Historico clinico (Consulta, Prontuario, Exame e Prescricao) criado');
+
+    // =============================================
+    // Cria uma internacao em andamento (Ocupando a UTI-002)
+    // =============================================
+    const leitoOcupado = await prisma.leito.findFirst({ where: { status: 'OCUPADO' } });
+    if (leitoOcupado) {
+        await prisma.internacao.create({
+            data: {
+                pacienteId: paciente.id,
+                leitoId: leitoOcupado.id,
+                profissionalId: medico.id,
+                motivo: 'Observacao cardiaca pos-arritmia',
+                status: 'ATIVA',
+                diagnostico: 'Taquicardia monitorada'
+            }
+        });
+        console.log('Internacao ativa vinculada ao paciente (UTI)');
+    }
 
     // Exibe resumo das credenciais de teste
     console.log('\n=== Seed concluido com sucesso! ===');
